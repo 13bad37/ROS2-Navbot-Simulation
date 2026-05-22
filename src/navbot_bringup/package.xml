@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>navbot_bringup</name>
+  <version>0.1.0</version>
+  <description>Launch, map, world, Nav2, and RViz configuration for ros2-navbot-sim.</description>
+  <author email="nonso@users.noreply.github.com">Nonso</author>
+  <maintainer email="nonso@users.noreply.github.com">Nonso</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>nav2_bringup</exec_depend>
+  <exec_depend>navbot_description</exec_depend>
+  <exec_depend>navbot_mission</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>ros_gz_sim</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+
+  <test_depend>ament_cmake_pytest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
