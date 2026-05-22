@@ -64,6 +64,7 @@ I designed this project to show how the main pieces of a ROS 2 navigation stack 
 Gazebo runs the physics engine and broadcasts odometry and TF data through the ROS bridge. Nav2 takes this data, along with the static map, to generate the velocity commands (`/cmd_vel`) that drive the robot.
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Arial, sans-serif", "primaryTextColor": "#111827", "lineColor": "#475569", "clusterBkg": "#f8fafc", "clusterBorder": "#94a3b8", "edgeLabelBackground": "#ffffff"}}}%%
 flowchart LR
     subgraph "Gazebo Environment"
         A[Physics Simulation] 
@@ -98,10 +99,10 @@ flowchart LR
     J -->|Sends Goal| K
     K --> F
 
-    classDef gazebo fill:#ffcc99,stroke:#ff6600,stroke-width:2px;
-    classDef ros fill:#99ccff,stroke:#0066cc,stroke-width:2px;
-    classDef nav fill:#ccffcc,stroke:#009933,stroke-width:2px;
-    classDef control fill:#ccccff,stroke:#6600cc,stroke-width:2px;
+    classDef gazebo fill:#fff3e0,stroke:#f97316,stroke-width:2px,color:#111827;
+    classDef ros fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#111827;
+    classDef nav fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#111827;
+    classDef control fill:#ede9fe,stroke:#7c3aed,stroke-width:2px,color:#111827;
 
     class A,I gazebo;
     class C,L,D ros;
@@ -172,26 +173,6 @@ Once everything is up, the mission node will output the progress of the multi-go
 [multi_goal_nav] Mission complete: 3/3 goals reached in 105.4s
 [multi_goal_nav] Wrote mission log: logs/mission_2026-05-22T10-42-10.json
 ```
-
-## Recording Screenshots
-
-Run the demo first, then capture fresh media:
-
-```bash
-./scripts/record_demo.sh screenshots
-./scripts/record_demo.sh gif
-./scripts/record_demo.sh video
-```
-
-The README expects these files:
-
-```text
-docs/screenshots/demo.gif
-docs/screenshots/rviz_path_planning.png
-docs/screenshots/mission_complete.png
-```
-
-If Gazebo's GUI viewport is black on your desktop, use `gui:=false` and capture RViz instead. That issue is usually graphics-driver related, not a Nav2 problem.
 
 ## More Notes
 
