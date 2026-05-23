@@ -14,7 +14,7 @@ def generate_launch_description():
 
     This launch file configures and starts the Nav2 nodes necessary for
     autonomous navigation. It brings up:
-    1. Map Server and Static Transform Publisher for the fixed static map.
+    1. Map Server and AMCL localization for the fixed static map.
     2. Nav2 Controller, Planner, Smoother, Behavior, and Waypoint Follower servers.
     3. Lifecycle managers to transition Nav2 nodes to the ACTIVE state.
     4. RViz2 for visualization.
@@ -27,9 +27,6 @@ def generate_launch_description():
     params_file = LaunchConfiguration("params_file")
     rviz = LaunchConfiguration("rviz")
     rviz_config = LaunchConfiguration("rviz_config")
-    map_to_odom_x = LaunchConfiguration("map_to_odom_x")
-    map_to_odom_y = LaunchConfiguration("map_to_odom_y")
-    map_to_odom_yaw = LaunchConfiguration("map_to_odom_yaw")
 
     remappings = [("/tf", "tf"), ("/tf_static", "tf_static")]
     nav_nodes = [
@@ -53,29 +50,13 @@ def generate_launch_description():
         remappings=remappings,
     )
 
-    map_to_odom = Node(
-        package="tf2_ros",
-        executable="static_transform_publisher",
-        name="map_to_odom_publisher",
+    amcl = Node(
+        package="nav2_amcl",
+        executable="amcl",
+        name="amcl",
         output="screen",
-        arguments=[
-            "--x",
-            map_to_odom_x,
-            "--y",
-            map_to_odom_y,
-            "--z",
-            "0.0",
-            "--roll",
-            "0.0",
-            "--pitch",
-            "0.0",
-            "--yaw",
-            map_to_odom_yaw,
-            "--frame-id",
-            "map",
-            "--child-frame-id",
-            "odom",
-        ],
+        parameters=[params_file, {"use_sim_time": use_sim_time}],
+        remappings=remappings,
     )
 
     map_lifecycle = Node(
@@ -87,7 +68,7 @@ def generate_launch_description():
             {
                 "use_sim_time": use_sim_time,
                 "autostart": True,
-                "node_names": ["map_server"],
+                "node_names": ["map_server", "amcl"],
             }
         ],
     )
@@ -187,9 +168,6 @@ def generate_launch_description():
         [
             DeclareLaunchArgument("use_sim_time", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
-            DeclareLaunchArgument("map_to_odom_x", default_value="-4.0"),
-            DeclareLaunchArgument("map_to_odom_y", default_value="-3.0"),
-            DeclareLaunchArgument("map_to_odom_yaw", default_value="0.0"),
             DeclareLaunchArgument(
                 "map",
                 default_value=str(bringup_dir / "maps" / "warehouse_map.yaml"),
@@ -203,7 +181,7 @@ def generate_launch_description():
                 default_value=str(bringup_dir / "config" / "rviz_config.rviz"),
             ),
             map_server,
-            map_to_odom,
+            amcl,
             map_lifecycle,
             controller_server,
             smoother_server,

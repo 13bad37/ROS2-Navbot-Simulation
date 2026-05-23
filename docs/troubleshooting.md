@@ -50,7 +50,7 @@ ros2 run tf2_ros tf2_echo map base_footprint
 ros2 run tf2_ros tf2_echo base_link lidar_link
 ```
 
-If `map -> odom` is missing, check the `map_to_odom_publisher` node in `nav.launch.py`. If `base_link -> lidar_link` is missing, check `robot_state_publisher`.
+If `map -> odom` is missing, check that `/amcl` is running, `/scan` is publishing, `/odom` is publishing, and the mission node has published `/initialpose`. If `base_link -> lidar_link` is missing, check `robot_state_publisher`.
 
 ## The robot does not move
 
@@ -65,13 +65,13 @@ If `/cmd_vel` publishes but `/odom` does not change, inspect the `ros_gz_bridge`
 
 ## `/scan` is missing
 
-The default launch path starts `synthetic_scan_publisher`, which publishes `/scan` directly in ROS:
+The default launch path uses the Gazebo lidar bridge and republishes `/gz_scan_raw` as `/scan`:
 
 ```bash
 ros2 topic hz /scan
 ```
 
-If you run with `use_synthetic_scan:=false`, Gazebo publishes `/gz_scan`, `ros_gz_scan_bridge` exposes it as `/gz_scan_raw`, and `scan_frame_republisher` republishes it as `/scan`. If `/scan` is missing, your Gazebo lidar sensor path is not working in that environment. Switch back to the default:
+If `/scan` is missing, your Gazebo lidar sensor path is not working in that environment. Switch to the fallback:
 
 ```bash
 ./scripts/run_demo.sh use_synthetic_scan:=true

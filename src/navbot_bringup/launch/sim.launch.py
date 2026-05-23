@@ -19,7 +19,7 @@ def generate_launch_description():
     3. Spawning the robot model into the world.
     4. Publishing the robot state (URDF).
     5. Bridging topics (odometry, cmd_vel, tf) between ROS 2 and Gazebo.
-    6. Starting either the synthetic scan publisher or the optional Gazebo scan bridge.
+    6. Starting the Gazebo scan bridge or the synthetic scan fallback.
     """
     bringup_dir = Path(get_package_share_directory("navbot_bringup"))
     description_dir = Path(get_package_share_directory("navbot_description"))
@@ -152,7 +152,7 @@ def generate_launch_description():
             DeclareLaunchArgument("robot_name", default_value="navbot"),
             DeclareLaunchArgument("use_sim_time", default_value="true"),
             DeclareLaunchArgument("gui", default_value="true"),
-            DeclareLaunchArgument("use_synthetic_scan", default_value="true"),
+            DeclareLaunchArgument("use_synthetic_scan", default_value="false"),
             SetEnvironmentVariable("GZ_SIM_RESOURCE_PATH", os.pathsep.join(resource_paths)),
             SetEnvironmentVariable("GZ_IP", "127.0.0.1"),
             gazebo_server,

@@ -37,7 +37,7 @@ I designed this project to show how the main pieces of a ROS 2 navigation stack 
 - **ROS 2 Package Architecture**: Separated the logic into distinct packages (`bringup`, `description`, `mission`) using colcon build patterns.
 - **Simulation Integration**: Uses Gazebo Harmonic (modern Gazebo) and connects to ROS via `ros_gz_sim` and `ros_gz_bridge`.
 - **Differential Drive Kinematics**: The robot uses custom URDF and SDF models instead of depending on TurtleBot3 simulator packages.
-- **Nav2 Stack**: The navigation is fully configured using a static map, layered costmaps, global planning (NavFn), and local control (DWB).
+- **Nav2 Stack**: The navigation is configured with AMCL localization, a static map, layered costmaps, global planning (NavFn), and local control (DWB).
 - **Mission Control**: A Python mission node uses the Nav2 `NavigateToPose` action to send goals and log mission performance.
 
 ---
@@ -54,14 +54,14 @@ I designed this project to show how the main pieces of a ROS 2 navigation stack 
 
 ### Engineering Decisions
 1. **Custom Robot Definition**: The robot lives in `navbot_description`, with matching URDF for RViz and SDF for Gazebo.
-2. **Static Mapping**: The demo uses a static map with a fixed `map -> odom` transform. That keeps the run repeatable and keeps the focus on planning/control rather than SLAM.
-3. **Selectable Laser Source**: By default, a synthetic `/scan` publisher keeps the demo stable in containerized or GPU-sensitive environments. Native Ubuntu users can switch to the Gazebo lidar path with `use_synthetic_scan:=false`.
+2. **Static Map + AMCL**: The demo uses a known warehouse map and AMCL localization. That keeps the run repeatable while still using the normal Nav2 `map -> odom -> base_footprint` localization flow.
+3. **Selectable Laser Source**: By default, Gazebo's simulated lidar feeds AMCL and the Nav2 costmaps. If your graphics stack breaks Gazebo ray sensors, you can switch to the synthetic scan fallback with `use_synthetic_scan:=true`.
 
 ---
 
 ## System Architecture
 
-Gazebo runs the physics engine and broadcasts odometry and TF data through the ROS bridge. Nav2 takes this data, along with the static map, to generate the velocity commands (`/cmd_vel`) that drive the robot.
+Gazebo runs the physics engine and broadcasts odometry and TF data through the ROS bridge. AMCL estimates the robot pose against the static map using odometry and `/scan`, then Nav2 uses that estimate to generate the velocity commands (`/cmd_vel`) that drive the robot.
 
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"fontFamily": "Arial, sans-serif", "primaryTextColor": "#111827", "lineColor": "#475569", "clusterBkg": "#f8fafc", "clusterBorder": "#94a3b8", "edgeLabelBackground": "#ffffff"}}}%%
@@ -73,8 +73,9 @@ flowchart LR
 
     subgraph "ROS 2 Core"
         C[Topics: /odom, /tf]
-        L[Synthetic Lidar /scan]
+        L[Gazebo Lidar /scan]
         D[Static Map Node]
+        M[AMCL Localization]
     end
 
     subgraph "Nav2 Stack"
@@ -90,7 +91,10 @@ flowchart LR
 
     A -->|State| I
     I -->|ros_gz_bridge| C
-    C --> E
+    C --> M
+    L --> M
+    D --> M
+    M --> E
     L --> E
     D --> E
     E --> F
@@ -105,7 +109,7 @@ flowchart LR
     classDef control fill:#ede9fe,stroke:#7c3aed,stroke-width:2px,color:#111827;
 
     class A,I gazebo;
-    class C,L,D ros;
+    class C,L,D,M ros;
     class E,F,G nav;
     class J,K control;
 ```
@@ -153,8 +157,8 @@ Useful launch options:
 # Run without the Gazebo GUI. Handy on Wayland/NVIDIA setups where Gazebo renders black.
 ./scripts/run_demo.sh gui:=false
 
-# Try Gazebo's lidar sensor instead of the default synthetic scan publisher.
-./scripts/run_demo.sh use_synthetic_scan:=false
+# Use the synthetic scan fallback if Gazebo's lidar sensor does not publish on your machine.
+./scripts/run_demo.sh use_synthetic_scan:=true
 
 # Launch RViz/Nav2 only, without starting the mission automatically.
 ./scripts/run_demo.sh start_mission:=false
@@ -165,12 +169,13 @@ Useful launch options:
 Once everything is up, the mission node will output the progress of the multi-goal navigation directly to the terminal. You should see logs like this:
 
 ```text
+[multi_goal_nav] Publishing initial pose: x=-4.00 y=-3.00 yaw=0.00
 [multi_goal_nav] Waiting for bt_navigator lifecycle state ACTIVE...
-[multi_goal_nav] Goal 1/3 loading_dock: x=3.35 y=-2.70 yaw=0.00
-[multi_goal_nav] Goal loading_dock status: distance_remaining=3.21m navigation_time=5.2s recoveries=0
-[multi_goal_nav] Goal loading_dock succeeded in 29.6s
+[multi_goal_nav] Goal 1/3 west_staging: x=-2.40 y=-3.00 yaw=0.00
+[multi_goal_nav] Goal west_staging status: distance_remaining=0.65m navigation_time=5.0s recoveries=0
+[multi_goal_nav] Goal west_staging succeeded in 7.3s
 ...
-[multi_goal_nav] Mission complete: 3/3 goals reached in 105.4s
+[multi_goal_nav] Mission complete: 3/3 goals reached in 27.2s
 [multi_goal_nav] Wrote mission log: logs/mission_2026-05-22T10-42-10.json
 ```
 

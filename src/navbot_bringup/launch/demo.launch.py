@@ -78,7 +78,7 @@ def generate_launch_description():
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument("start_mission", default_value="true"),
             DeclareLaunchArgument("gui", default_value="true"),
-            DeclareLaunchArgument("use_synthetic_scan", default_value="true"),
+            DeclareLaunchArgument("use_synthetic_scan", default_value="false"),
             DeclareLaunchArgument("log_dir", default_value="logs"),
             sim_launch,
             nav_launch,

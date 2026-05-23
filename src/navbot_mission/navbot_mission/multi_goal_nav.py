@@ -24,10 +24,10 @@ class MultiGoalNavigator(Node):
     """
     ROS 2 Node that sequences a list of predefined navigation goals.
 
-    This node reads a YAML file containing target poses, waits for the Nav2
-    lifecycle manager to become active, optionally publishes an initial pose,
-    and then sequentially sends `NavigateToPose` action goals to the Nav2 stack.
-    It logs mission metrics via the `MissionMetricsLogger`.
+    This node reads a YAML file containing target poses, seeds AMCL with an
+    initial pose, waits for Nav2 to become active, and then sequentially sends
+    `NavigateToPose` action goals to the Nav2 stack. It also logs mission
+    metrics via the `MissionMetricsLogger`.
     """
 
     def __init__(self) -> None:
@@ -74,8 +74,16 @@ class MultiGoalNavigator(Node):
         metrics.start_mission()
 
         self.get_logger().info(f"Loaded {len(mission.goals)} goals from {self.goals_file}")
-        self.get_logger().info("Waiting for Nav2 NavigateToPose action server...")
 
+        if not self._wait_for_initial_pose_subscriber():
+            metrics.record_goal("nav2_startup", 0.0, False, "/initialpose subscriber unavailable")
+            log_path = metrics.finish_mission()
+            self.get_logger().error(f"Wrote mission log: {log_path}")
+            return False
+
+        self._publish_initial_pose(mission.initial_pose)
+
+        self.get_logger().info("Waiting for Nav2 NavigateToPose action server...")
         if not self.nav_client.wait_for_server(timeout_sec=self.nav2_wait_timeout_sec):
             self.get_logger().error(
                 f"Nav2 action server was not ready after {self.nav2_wait_timeout_sec:.1f}s"
@@ -91,7 +99,6 @@ class MultiGoalNavigator(Node):
             self.get_logger().error(f"Wrote mission log: {log_path}")
             return False
 
-        self._publish_initial_pose(mission.initial_pose)
         mission_started = time.monotonic()
         completed = 0
 
@@ -126,19 +133,45 @@ class MultiGoalNavigator(Node):
         msg = PoseWithCovarianceStamped()
         msg.header.frame_id = "map"
         msg.pose.pose = _pose_from_2d(pose).pose
-        msg.pose.covariance[0] = 0.25
-        msg.pose.covariance[7] = 0.25
-        msg.pose.covariance[35] = 0.068
+        msg.pose.covariance[0] = 0.02
+        msg.pose.covariance[7] = 0.02
+        msg.pose.covariance[35] = 0.02
 
         self.get_logger().info(
             f"Publishing initial pose: x={pose.x:.2f} y={pose.y:.2f} yaw={pose.yaw:.2f}"
         )
-        # The fixed map->odom transform demo does not consume /initialpose, but
-        # publishing it keeps this mission node compatible with AMCL variants.
         for _ in range(8):
             msg.header.stamp = self.get_clock().now().to_msg()
             self.initial_pose_pub.publish(msg)
             rclpy.spin_once(self, timeout_sec=0.1)
+
+    def _wait_for_initial_pose_subscriber(self) -> bool:
+        """
+        Wait for AMCL to subscribe to /initialpose before seeding localization.
+
+        Nav2's global costmap cannot activate until AMCL publishes map->odom.
+        Publishing the seed pose before waiting on bt_navigator avoids a startup
+        deadlock after removing the old static map->odom transform.
+        """
+        self.get_logger().info("Waiting for AMCL /initialpose subscription...")
+        deadline = time.monotonic() + self.nav2_wait_timeout_sec
+        last_status_log = 0.0
+
+        while rclpy.ok() and time.monotonic() < deadline:
+            if self.initial_pose_pub.get_subscription_count() > 0:
+                self.get_logger().info("AMCL is ready for the initial pose")
+                return True
+
+            now = time.monotonic()
+            if now - last_status_log >= 5.0:
+                last_status_log = now
+                self.get_logger().info("Still waiting for AMCL to subscribe to /initialpose...")
+            rclpy.spin_once(self, timeout_sec=0.2)
+
+        self.get_logger().error(
+            f"No /initialpose subscriber appeared after {self.nav2_wait_timeout_sec:.1f}s"
+        )
+        return False
 
     def _navigate_to_goal(self, goal: NamedGoal) -> tuple[bool, float, str]:
         """
@@ -301,13 +334,16 @@ def main() -> None:
     node = MultiGoalNavigator()
     try:
         success = node.run()
+    except KeyboardInterrupt:
+        success = False
     except Exception as exc:
         node.get_logger().error(f"Mission failed with an unhandled error: {exc}")
         node.get_logger().error(traceback.format_exc())
         success = False
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
     if not success:
         sys.exit(1)

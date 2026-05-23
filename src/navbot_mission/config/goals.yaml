@@ -4,15 +4,15 @@ initial_pose:
   yaw: 0.0
 
 goals:
-  - name: loading_dock
-    x: 3.35
-    y: -2.70
+  - name: west_staging
+    x: -2.40
+    y: -3.00
     yaw: 0.0
-  - name: inspection_lane
-    x: 3.25
-    y: 2.65
-    yaw: 1.57
-  - name: right_aisle_return
-    x: 3.30
-    y: -2.55
-    yaw: 3.14
+  - name: center_staging
+    x: 0.00
+    y: -3.00
+    yaw: 0.0
+  - name: loading_dock
+    x: 2.40
+    y: -3.00
+    yaw: 0.0

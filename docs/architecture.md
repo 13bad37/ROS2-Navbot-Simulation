@@ -15,21 +15,21 @@ Gazebo owns the simulated world and robot physics. The robot SDF includes a diff
 - `/tf`: Gazebo to ROS 2 for odom to base transform.
 - `/clock`: Gazebo to ROS 2 for simulation time.
 
-By default, `navbot_mission/synthetic_scan_publisher.py` publishes `/scan` from `lidar_link`. This keeps the demo stable on machines where Gazebo's lidar rendering is unreliable. The robot SDF also includes a Gazebo lidar sensor that publishes `/gz_scan`; launch with `use_synthetic_scan:=false` to bridge it into ROS as `/gz_scan_raw`, then republish it as `/scan` with the `lidar_link` frame.
+By default, the Gazebo lidar sensor publishes `/gz_scan`; `ros_gz_scan_bridge` exposes it as `/gz_scan_raw`, then `scan_frame_republisher.py` republishes it as `/scan` with the `lidar_link` frame. Launch with `use_synthetic_scan:=true` to use the synthetic scan fallback on machines where Gazebo ray sensors are unreliable.
 
 `robot_state_publisher` publishes the robot's fixed transforms from the URDF, including `base_footprint`, `base_link`, wheel links, and `lidar_link`.
 
 ## Navigation Stack
 
-Nav2 uses a static map and a fixed `map -> odom` transform. The global costmap uses the static map plus scan observations. The local costmap uses scan observations in the odom frame. With the default synthetic scan, the map is the source of obstacle layout, so the demo shows repeatable map-based planning. With `use_synthetic_scan:=false`, Gazebo's lidar path can also feed observed obstacles into the costmaps.
+Nav2 uses a static map and AMCL localization. AMCL consumes `/odom`, `/scan`, and `/map`, then publishes the `map -> odom` transform used by the global costmap. The global costmap uses the static map and inflation; the local costmap uses scan observations in the odom frame for close-range obstacle handling.
 
 ## Mission Execution
 
-`navbot_mission/multi_goal_nav.py` loads an initial pose and a list of goals from `config/goals.yaml`. It waits for the Nav2 `NavigateToPose` action server, publishes the initial pose, sends each goal, prints progress, and records a JSON mission summary under `logs/`.
+`navbot_mission/multi_goal_nav.py` loads an initial pose and a list of goals from `config/goals.yaml`. It waits for AMCL to subscribe to `/initialpose`, publishes the initial pose, waits for Nav2, sends each goal, prints progress, and records a JSON mission summary under `logs/`.
 
 ## Frames
 
-- `map`: static map frame, parent of `odom` from `static_transform_publisher`.
+- `map`: static map frame, parent of `odom` from AMCL.
 - `odom`: continuous odometry frame, parent of `base_footprint` from Gazebo diff-drive.
 - `base_footprint`: planar robot base frame for Nav2.
 - `base_link`: robot body frame.
