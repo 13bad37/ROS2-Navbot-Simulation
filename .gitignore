@@ -26,6 +26,7 @@ docs/screenshots/*.gif
 docs/screenshots/*.mp4
 docs/screenshots/*.txt
 docs/superpowers/
+docs/troubleshooting.md
 !docs/screenshots/README.md
 !docs/screenshots/gazebo_world.png
 !docs/screenshots/rviz_path_planning.png

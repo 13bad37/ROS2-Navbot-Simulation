@@ -186,4 +186,3 @@ The JSON log keeps the same metrics per goal and adds a mission summary, which m
 
 - [Architecture notes](docs/architecture.md)
 - [Engineering notes](docs/engineering_notes.md)
-- [Troubleshooting](docs/troubleshooting.md)
