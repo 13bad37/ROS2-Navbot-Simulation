@@ -6,6 +6,8 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from navbot_mission.odom_distance_tracker import calculate_path_efficiency_pct
+
 
 @dataclass(frozen=True)
 class GoalResult:
@@ -17,11 +19,17 @@ class GoalResult:
         elapsed_sec (float): Time taken to reach or fail the goal in seconds.
         success (bool): True if the goal was successfully reached.
         message (str): Additional status information or failure reason.
+        traveled_distance_m (float): Distance measured from odometry during the goal.
+        straight_line_distance_m (float): Direct displacement measured during the goal.
+        path_efficiency_pct (float | None): Direct displacement as a percentage of travel distance.
     """
     name: str
     elapsed_sec: float
     success: bool
     message: str
+    traveled_distance_m: float
+    straight_line_distance_m: float
+    path_efficiency_pct: float | None
 
 
 class MissionMetricsLogger:
@@ -54,7 +62,17 @@ class MissionMetricsLogger:
         self._started_at_mono = time.monotonic()
         self._goal_results = []
 
-    def record_goal(self, name: str, elapsed_sec: float, success: bool, message: str = "") -> None:
+    def record_goal(
+        self,
+        name: str,
+        elapsed_sec: float,
+        success: bool,
+        message: str = "",
+        *,
+        traveled_distance_m: float = 0.0,
+        straight_line_distance_m: float = 0.0,
+        path_efficiency_pct: float | None = None,
+    ) -> None:
         """
         Record the completion or failure of a navigation goal.
 
@@ -63,6 +81,9 @@ class MissionMetricsLogger:
             elapsed_sec (float): Time taken to process the goal.
             success (bool): Whether the goal succeeded.
             message (str, optional): Additional status text. Defaults to "".
+            traveled_distance_m (float, optional): Odom distance covered during the goal.
+            straight_line_distance_m (float, optional): Direct displacement during the goal.
+            path_efficiency_pct (float | None, optional): Direct displacement divided by travel distance.
         """
         self._goal_results.append(
             GoalResult(
@@ -70,6 +91,11 @@ class MissionMetricsLogger:
                 elapsed_sec=round(float(elapsed_sec), 3),
                 success=bool(success),
                 message=message,
+                traveled_distance_m=round(float(traveled_distance_m), 3),
+                straight_line_distance_m=round(float(straight_line_distance_m), 3),
+                path_efficiency_pct=(
+                    round(float(path_efficiency_pct), 3) if path_efficiency_pct is not None else None
+                ),
             )
         )
 
@@ -95,6 +121,11 @@ class MissionMetricsLogger:
             if self._goal_results
             else 0.0
         )
+        total_traveled = round(sum(goal.traveled_distance_m for goal in self._goal_results), 3)
+        total_straight_line = round(
+            sum(goal.straight_line_distance_m for goal in self._goal_results),
+            3,
+        )
 
         payload = {
             "started_at": self._started_at_wall.isoformat(),
@@ -106,6 +137,12 @@ class MissionMetricsLogger:
                 "total_mission_time_sec": total_time,
                 "average_time_per_goal_sec": average,
                 "failed_goals": failed,
+                "total_traveled_distance_m": total_traveled,
+                "total_straight_line_distance_m": total_straight_line,
+                "mission_path_efficiency_pct": calculate_path_efficiency_pct(
+                    total_straight_line,
+                    total_traveled,
+                ),
             },
         }
 
@@ -117,4 +154,3 @@ class MissionMetricsLogger:
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
-

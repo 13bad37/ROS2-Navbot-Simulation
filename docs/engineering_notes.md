@@ -24,6 +24,10 @@ TurtleBot3 is convenient, but simulator integration can shift across ROS/Gazebo 
 
 The mission goals are treated as position waypoints. The yaw tolerance is intentionally loose because this demo is about localization, path planning, and reaching stops, not precision docking. That avoids wasting time on in-place rotations near obstacles after the robot has already reached the waypoint.
 
+## Mission Analytics
+
+The mission node measures distance directly from `/odom` rather than guessing from the configured waypoints. Each JSON log records travelled distance, straight-line displacement, and path efficiency for every goal. These are intentionally simple metrics, but they make planner tuning measurable instead of subjective.
+
 ## What This Demo Does Not Claim
 
 This is not a production autonomous robot stack. It does not include SLAM, recovery tuning for large dynamic scenes, perception pipelines, or hardware drivers. The default path uses Gazebo lidar, while the synthetic scan path is a fallback for difficult desktop/container graphics setups.

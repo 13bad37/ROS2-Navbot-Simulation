@@ -13,11 +13,17 @@ from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from lifecycle_msgs.msg import State
 from lifecycle_msgs.srv import GetState
 from nav2_msgs.action import NavigateToPose
+from nav_msgs.msg import Odometry
 from rclpy.action import ActionClient
 from rclpy.node import Node
 
 from navbot_mission.goal_loader import NamedGoal, Pose2D, load_goal_file
 from navbot_mission.metrics_logger import MissionMetricsLogger
+from navbot_mission.odom_distance_tracker import (
+    OdomDistanceTracker,
+    PathMetrics,
+    calculate_path_efficiency_pct,
+)
 
 
 class MultiGoalNavigator(Node):
@@ -57,6 +63,8 @@ class MultiGoalNavigator(Node):
         self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped, "/initialpose", 10)
         self.nav_client = ActionClient(self, NavigateToPose, "/navigate_to_pose")
         self.bt_state_client = self.create_client(GetState, "/bt_navigator/get_state")
+        self.distance_tracker = OdomDistanceTracker()
+        self.odom_sub = self.create_subscription(Odometry, "/odom", self._odom_callback, 20)
         self.latest_feedback = None
 
     def run(self) -> bool:
@@ -101,24 +109,49 @@ class MultiGoalNavigator(Node):
 
         mission_started = time.monotonic()
         completed = 0
+        total_traveled_distance_m = 0.0
+        total_straight_line_distance_m = 0.0
 
         for index, goal in enumerate(mission.goals, start=1):
             self.get_logger().info(
                 f"Goal {index}/{len(mission.goals)} {goal.name}: "
                 f"x={goal.x:.2f} y={goal.y:.2f} yaw={goal.yaw:.2f}"
             )
+            path_start = self.distance_tracker.snapshot()
             success, elapsed, message = self._navigate_to_goal(goal)
-            metrics.record_goal(goal.name, elapsed, success, message)
+            path_metrics = self.distance_tracker.measure_since(path_start)
+            total_traveled_distance_m += path_metrics.traveled_distance_m
+            total_straight_line_distance_m += path_metrics.straight_line_distance_m
+            metrics.record_goal(
+                goal.name,
+                elapsed,
+                success,
+                message,
+                traveled_distance_m=path_metrics.traveled_distance_m,
+                straight_line_distance_m=path_metrics.straight_line_distance_m,
+                path_efficiency_pct=path_metrics.path_efficiency_pct,
+            )
             if success:
                 completed += 1
-                self.get_logger().info(f"Goal {goal.name} succeeded in {elapsed:.1f}s")
+                self.get_logger().info(
+                    f"Goal {goal.name} succeeded in {elapsed:.1f}s; {_path_metrics_text(path_metrics)}"
+                )
             else:
-                self.get_logger().error(f"Goal {goal.name} failed in {elapsed:.1f}s: {message}")
+                self.get_logger().error(
+                    f"Goal {goal.name} failed in {elapsed:.1f}s: {message}; "
+                    f"{_path_metrics_text(path_metrics)}"
+                )
 
         log_path = metrics.finish_mission()
         total = time.monotonic() - mission_started
+        mission_efficiency_pct = calculate_path_efficiency_pct(
+            total_straight_line_distance_m,
+            total_traveled_distance_m,
+        )
         self.get_logger().info(
-            f"Mission complete: {completed}/{len(mission.goals)} goals reached in {total:.1f}s"
+            f"Mission complete: {completed}/{len(mission.goals)} goals reached in {total:.1f}s; "
+            f"traveled={total_traveled_distance_m:.2f}m "
+            f"efficiency={_format_efficiency(mission_efficiency_pct)}"
         )
         self.get_logger().info(f"Wrote mission log: {log_path}")
         return completed == len(mission.goals)
@@ -240,6 +273,10 @@ class MultiGoalNavigator(Node):
     def _feedback_callback(self, feedback_msg) -> None:
         self.latest_feedback = feedback_msg
 
+    def _odom_callback(self, msg: Odometry) -> None:
+        position = msg.pose.pose.position
+        self.distance_tracker.update(position.x, position.y)
+
     def _wait_for_nav2_active(self) -> bool:
         """
         Block until the bt_navigator node transitions to the ACTIVE lifecycle state.
@@ -314,6 +351,18 @@ def _pose_from_2d(pose: Pose2D) -> PoseStamped:
 
 def _duration_sec(duration_msg) -> float:
     return float(duration_msg.sec) + float(duration_msg.nanosec) / 1_000_000_000.0
+
+
+def _path_metrics_text(metrics: PathMetrics) -> str:
+    return (
+        f"traveled={metrics.traveled_distance_m:.2f}m "
+        f"straight_line={metrics.straight_line_distance_m:.2f}m "
+        f"efficiency={_format_efficiency(metrics.path_efficiency_pct)}"
+    )
+
+
+def _format_efficiency(efficiency_pct: float | None) -> str:
+    return f"{efficiency_pct:.1f}%" if efficiency_pct is not None else "n/a"
 
 
 def _goal_status_name(status: int) -> str:

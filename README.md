@@ -38,7 +38,7 @@ I designed this project to show how the main pieces of a ROS 2 navigation stack 
 - **Simulation Integration**: Uses Gazebo Harmonic (modern Gazebo) and connects to ROS via `ros_gz_sim` and `ros_gz_bridge`.
 - **Differential Drive Kinematics**: The robot uses custom URDF and SDF models instead of depending on TurtleBot3 simulator packages.
 - **Nav2 Stack**: The navigation is configured with AMCL localization, a static map, layered costmaps, global planning (NavFn), and local control (DWB).
-- **Mission Control**: A Python mission node uses the Nav2 `NavigateToPose` action to send goals and log mission performance.
+- **Mission Control**: A Python mission node sends `NavigateToPose` goals and logs timing, distance travelled, and path efficiency from `/odom`.
 
 ---
 
@@ -102,6 +102,7 @@ flowchart LR
     G -->|cmd_vel| I
     J -->|Sends Goal| K
     K --> F
+    C -->|odom metrics| J
 
     classDef gazebo fill:#fff3e0,stroke:#f97316,stroke-width:2px,color:#111827;
     classDef ros fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#111827;
@@ -172,12 +173,14 @@ Once everything is up, the mission node will output the progress of the multi-go
 [multi_goal_nav] Publishing initial pose: x=-4.00 y=-3.00 yaw=0.00
 [multi_goal_nav] Waiting for bt_navigator lifecycle state ACTIVE...
 [multi_goal_nav] Goal 1/3 west_staging: x=-2.40 y=-3.00 yaw=0.00
-[multi_goal_nav] Goal west_staging status: distance_remaining=0.65m navigation_time=5.0s recoveries=0
-[multi_goal_nav] Goal west_staging succeeded in 7.3s
+[multi_goal_nav] Goal west_staging status: distance_remaining=0.50m navigation_time=5.0s recoveries=0
+[multi_goal_nav] Goal west_staging succeeded in 6.3s; traveled=1.42m straight_line=1.42m efficiency=100.0%
 ...
-[multi_goal_nav] Mission complete: 3/3 goals reached in 27.2s
+[multi_goal_nav] Mission complete: 3/3 goals reached in 26.2s; traveled=6.21m efficiency=100.0%
 [multi_goal_nav] Wrote mission log: logs/mission_2026-05-22T10-42-10.json
 ```
+
+The JSON log keeps the same metrics per goal and adds a mission summary, which makes it easier to compare navigation runs after changing planner or controller parameters.
 
 ## More Notes
 

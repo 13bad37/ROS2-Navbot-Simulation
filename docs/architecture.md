@@ -27,6 +27,8 @@ Nav2 uses a static map and AMCL localization. AMCL consumes `/odom`, `/scan`, an
 
 `navbot_mission/multi_goal_nav.py` loads an initial pose and a list of goals from `config/goals.yaml`. It waits for AMCL to subscribe to `/initialpose`, publishes the initial pose, waits for Nav2, sends each goal, prints progress, and records a JSON mission summary under `logs/`.
 
+The mission node also subscribes to `/odom`. `odom_distance_tracker.py` integrates the distance between consecutive odometry samples and compares that travelled distance with each leg's straight-line displacement. The resulting efficiency metrics are useful when tuning planners and controllers.
+
 ## Frames
 
 - `map`: static map frame, parent of `odom` from AMCL.
